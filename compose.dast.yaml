@@ -68,7 +68,7 @@ services:
       -H "X-XSRF-TOKEN: ${DAST_XSRF:-}"
       -severity low,medium,high,critical
       -etags dos,fuzz
-      -ni -silent
+      -ni
       -jsonl -o /reports/nuclei.jsonl
       -me /reports/nuclei
     volumes:

@@ -88,7 +88,7 @@ jobs:
     parameters:
       template: sarif-json
       reportDir: /zap/wrk
-      reportFile: zap-report
+      reportFile: zap-report.sarif.json
 
   # Exit 1 on any High alert (fails the pipeline), 2 on Medium (a warning).
   - type: exitStatus
