@@ -1,0 +1,97 @@
+# ZAP Automation Framework plan: https://www.zaproxy.org/docs/automate/automation-framework/
+# dast/run.sh signs in first and passes the session through DAST_SESSION / DAST_XSRF, so
+# every request ZAP sends is authenticated (the app's session cookie + CSRF double submit).
+env:
+  contexts:
+    - name: todo-app
+      urls:
+        - http://web:8080
+      includePaths:
+        - http://web:8080.*
+      excludePaths:
+        # Logging out would end the scan's session, and everything after would be a 401.
+        - http://web:8080/api/auth/logout.*
+  parameters:
+    failOnError: true
+    failOnWarning: false
+    progressToStdout: true
+
+jobs:
+  - type: replacer
+    parameters:
+      deleteAllRules: true
+    rules:
+      - description: Session and CSRF cookies
+        matchType: req_header
+        matchString: Cookie
+        replacementString: JSESSIONID=${DAST_SESSION}; XSRF-TOKEN=${DAST_XSRF}
+      - description: CSRF header (Spring Security double submit)
+        matchType: req_header
+        matchString: X-XSRF-TOKEN
+        replacementString: ${DAST_XSRF}
+
+  # The REST API, from springdoc's description. The backend isn't reachable from outside the
+  # stack, so the spec is read from it directly and the requests go through the front end.
+  - type: openapi
+    parameters:
+      apiUrl: http://backend:8080/v3/api-docs
+      targetUrl: http://web:8080
+      context: todo-app
+
+  # Login is a Spring Security filter, so it isn't in the OpenAPI description. Seed it with
+  # a user that doesn't exist: a successful login would rotate the scan's session away.
+  - type: requestor
+    requests:
+      - url: http://web:8080/api/auth/login
+        method: POST
+        headers:
+          - "Content-Type: application/x-www-form-urlencoded"
+        data: username=zap-probe&password=not-a-password
+        responseCode: 401
+
+  # The single-page front end (headers, CSP, cookies, static files).
+  - type: spider
+    parameters:
+      context: todo-app
+      url: http://web:8080/
+      maxDuration: 2
+
+  - type: passiveScan-wait
+    parameters:
+      maxDuration: 5
+
+  - type: activeScan
+    parameters:
+      context: todo-app
+      maxRuleDurationInMins: 5
+      maxScanDurationInMins: 20
+    policyDefinition:
+      defaultStrength: Medium
+      defaultThreshold: Medium
+
+  - type: passiveScan-wait
+    parameters:
+      maxDuration: 5
+
+  - type: report
+    parameters:
+      template: risk-confidence-html
+      reportDir: /zap/wrk
+      reportFile: zap-report
+      reportTitle: ZAP scan of the todo app
+  - type: report
+    parameters:
+      template: traditional-json
+      reportDir: /zap/wrk
+      reportFile: zap-report
+  - type: report
+    parameters:
+      template: sarif-json
+      reportDir: /zap/wrk
+      reportFile: zap-report
+
+  # Exit 1 on any High alert (fails the pipeline), 2 on Medium (a warning).
+  - type: exitStatus
+    parameters:
+      errorLevel: High
+      warnLevel: Medium

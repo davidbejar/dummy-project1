@@ -68,6 +68,15 @@ class AuthHttpIT {
 		assertThat(me.body()).contains("\"username\":\"david\"");
 	}
 
+	@Test
+	void apiDocsArePublicAndDescribeTheApi() throws Exception {
+		HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/v3/api-docs")).GET());
+
+		assertThat(response.statusCode()).isEqualTo(200);
+		assertThat(response.body()).contains("\"openapi\"").contains("/api/todos");
+		assertThat(setCookie(response, "JSESSIONID")).isEmpty();
+	}
+
 	private HttpResponse<String> send(HttpRequest.Builder request) throws Exception {
 		return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
 	}

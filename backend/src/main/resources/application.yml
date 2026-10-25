@@ -31,6 +31,12 @@ server:
         # Set SESSION_COOKIE_SECURE=true when served over HTTPS.
         secure: ${SESSION_COOKIE_SECURE:false}
 
+springdoc:
+  api-docs:
+    # The OpenAPI description at /v3/api-docs is public, so the DAST scan can import it.
+    # In production, set API_DOCS_ENABLED=false to stop publishing it.
+    enabled: ${API_DOCS_ENABLED:true}
+
 management:
   endpoints:
     web:

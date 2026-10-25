@@ -2,3 +2,6 @@
 .idea/
 .vscode/
 *.log
+
+# DAST scan output (dast/run.sh)
+dast/reports/

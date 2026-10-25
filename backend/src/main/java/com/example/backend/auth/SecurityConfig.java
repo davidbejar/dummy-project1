@@ -48,6 +48,8 @@ public class SecurityConfig {
 		http.authorizeHttpRequests(auth -> auth
 			.requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info", "/error").permitAll()
 			.requestMatchers(AuthController.CSRF_URL).permitAll()
+			// The OpenAPI description (off when springdoc.api-docs.enabled=false).
+			.requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
 			.anyRequest().authenticated())
 			.csrf(csrf -> csrf.spa())
 			.formLogin(form -> form.loginPage("/")

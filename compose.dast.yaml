@@ -1,0 +1,79 @@
+# The stack the DAST scan attacks, plus the scanners. Run it through dast/run.sh.
+# It is separate from compose.yaml: its own throwaway database (nothing touches your `app`
+# data) and no host ports except the web front end on 127.0.0.1.
+services:
+  cockroachdb:
+    image: docker.io/cockroachdb/cockroach:latest-v26.3
+    # Small caches: the scan's data is tiny, and the whole stack has to fit in a 4 GB Podman VM.
+    command: start-single-node --insecure --cache=128MiB --max-sql-memory=128MiB
+    environment:
+      COCKROACH_DATABASE: app
+    # An anonymous volume, deleted by `down -v`. (tmpfs would hold the data in RAM, which a
+    # 4 GB Podman VM can't spare while ZAP scans.)
+    volumes:
+      - /cockroach/cockroach-data
+    healthcheck:
+      test: ["CMD", "cockroach", "sql", "--insecure", "-e", "SELECT 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build: ./backend
+    environment:
+      DB_URL: jdbc:postgresql://cockroachdb:26257/app?sslmode=disable
+    depends_on:
+      cockroachdb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/actuator/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  web:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:${DAST_WEB_PORT:-8088}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  zap:
+    image: docker.io/zaproxy/zap-stable:2.17.0
+    profiles: [scan]
+    # A fixed heap, so ZAP isn't killed for running out of memory in a small VM.
+    command: zap.sh -Xmx1g -cmd -autorun /zap/plan/zap-plan.yaml
+    environment:
+      DAST_SESSION: ${DAST_SESSION:-}
+      DAST_XSRF: ${DAST_XSRF:-}
+    volumes:
+      - ./dast/zap:/zap/plan:ro
+      - ./dast/reports:/zap/wrk
+
+  nuclei:
+    image: docker.io/projectdiscovery/nuclei:v3.11.1
+    profiles: [scan]
+    # -ni: no interactsh (out-of-band) callbacks to the internet.
+    # -etags dos,fuzz: skip denial-of-service and fuzzing templates.
+    # The templates are downloaded on first start (they need internet access).
+    command: >-
+      -u http://web:8080,http://backend:8080
+      -H "Cookie: JSESSIONID=${DAST_SESSION:-}; XSRF-TOKEN=${DAST_XSRF:-}"
+      -H "X-XSRF-TOKEN: ${DAST_XSRF:-}"
+      -severity low,medium,high,critical
+      -etags dos,fuzz
+      -ni -silent
+      -jsonl -o /reports/nuclei.jsonl
+      -me /reports/nuclei
+    volumes:
+      - ./dast/reports:/reports
+      - nuclei-templates:/root/nuclei-templates
+
+volumes:
+  nuclei-templates:

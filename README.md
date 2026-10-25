@@ -192,3 +192,43 @@ cd backend && ./mvnw verify
 ```
 
 If JDK 25 isn't your default `java`, prefix with `JAVA_HOME=/opt/homebrew/opt/openjdk@25`.
+
+## Security scanning (DAST)
+
+[`dast/run.sh`](dast/run.sh) attacks a running copy of the app with two scanners:
+
+- **[OWASP ZAP](https://www.zaproxy.org)** follows the plan in [`dast/zap/zap-plan.yaml`](dast/zap/zap-plan.yaml):
+  - It imports the REST API from the OpenAPI description at `/v3/api-docs` (served by springdoc).
+  - It seeds the login endpoint and spiders the front end.
+  - Then it runs an active scan, capped at 20 minutes.
+- **[Nuclei](https://github.com/projectdiscovery/nuclei)** runs its community templates for known CVEs, misconfigurations and exposed files. Denial-of-service and fuzzing templates are skipped, and so are out-of-band callbacks.
+
+```bash
+dast/run.sh
+```
+
+Here's what the script does:
+
+1. It builds the backend and frontend images and starts them with their own throwaway CockroachDB ([`compose.dast.yaml`](compose.dast.yaml)). Your `app` data is never touched. The front end is the production build served by nginx, which proxies `/api` to the backend. It's reachable at http://127.0.0.1:8088 while the scan runs.
+2. It signs in as `david`. The session and CSRF cookies are added to every scanner request, so the protected API is scanned too. ZAP never calls logout, because that would end the session.
+3. It writes the reports to `dast/reports/`:
+   - `zap-report.html`, plus `.json` and `.sarif.json` versions
+   - `nuclei.jsonl`, plus a Markdown report per finding in `nuclei/`
+4. It stops the stack.
+
+It **fails** on a ZAP High alert or a Nuclei high/critical finding. ZAP Medium alerts only print a warning. It uses `podman compose` locally and `docker compose` in CI (when `CI` is set); set `COMPOSE` to override. Set `DAST_USER`, `DAST_PASSWORD` or `DAST_WEB_PORT` to change the defaults.
+
+`/v3/api-docs` is public so ZAP can read it. In production, set `API_DOCS_ENABLED=false`.
+
+## Continuous integration
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request once the repo is on GitHub:
+
+| Job | Runs |
+|---|---|
+| Frontend unit tests | `deno task check` and `deno task test` |
+| Backend unit tests | `./mvnw test` |
+| Backend integration tests | `./mvnw verify` against CockroachDB from `compose.yaml` |
+| DAST (ZAP + Nuclei) | `dast/run.sh`, only after the three test jobs pass |
+
+The DAST reports are uploaded as the `dast-reports` artifact of each run, including runs that fail.
