@@ -14,10 +14,12 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Runner image pinned to a specific Ubuntu release (not ubuntu-latest), so OS upgrades happen
+# when we choose them. Change all four `runs-on` lines together.
 jobs:
   frontend:
     name: Frontend unit tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     defaults:
       run:
         working-directory: frontend
@@ -36,7 +38,7 @@ jobs:
 
   backend-unit:
     name: Backend unit tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     defaults:
       run:
         working-directory: backend
@@ -51,7 +53,7 @@ jobs:
 
   backend-integration:
     name: Backend integration tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v6
@@ -77,7 +79,7 @@ jobs:
   dast:
     name: DAST (ZAP + Nuclei)
     needs: [frontend, backend-unit, backend-integration]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
