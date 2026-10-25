@@ -17,6 +17,14 @@ public class AuthController {
 
 	static final String CSRF_URL = "/api/auth/csrf";
 
+	static final String ANONYMOUS_URL = "/api/auth/anonymous";
+
+	private final ScreenAccess screens;
+
+	public AuthController(ScreenAccess screens) {
+		this.screens = screens;
+	}
+
 	/**
 	 * Issues the {@code XSRF-TOKEN} cookie. Tokens are created lazily, so the frontend calls
 	 * this before its first state-changing request (typically the login) when it has none.
@@ -30,7 +38,13 @@ public class AuthController {
 	/** The signed-in user; 401 when there is no session (handled by Spring Security). */
 	@GetMapping("/me")
 	public CurrentUser me(@AuthenticationPrincipal AppUserDetails user) {
-		return CurrentUser.from(user);
+		return CurrentUser.from(user, screens);
+	}
+
+	/** The role and screens of visitors who are not signed in; public. */
+	@GetMapping("/anonymous")
+	public Visitor anonymous() {
+		return screens.anonymous();
 	}
 
 }

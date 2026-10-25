@@ -1,28 +1,15 @@
 import { FormEvent, useEffect, useState } from 'react'
+import { errorText, useApiAction } from '../../lib/useApiAction.ts'
 import { TITLE_MAX_LENGTH, Todo, todosApi, validateTitle } from './api.ts'
-
-function message(e: unknown): string {
-  return e instanceof Error ? e.message : String(e)
-}
 
 export function TodosPage() {
   const [todos, setTodos] = useState<Todo[]>([])
   const [title, setTitle] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const { error, setError, run } = useApiAction()
 
   useEffect(() => {
-    todosApi.list().then(setTodos).catch((e: unknown) => setError(message(e)))
-  }, [])
-
-  // Runs an API action, showing its error or clearing a previous one on success.
-  async function run(action: () => Promise<void>) {
-    try {
-      await action()
-      setError(null)
-    } catch (e) {
-      setError(message(e))
-    }
-  }
+    todosApi.list().then(setTodos).catch((e: unknown) => setError(errorText(e)))
+  }, [setError])
 
   function add(e: FormEvent) {
     e.preventDefault()

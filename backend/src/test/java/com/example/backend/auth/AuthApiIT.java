@@ -6,17 +6,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.example.backend.testsupport.Browser;
 import com.example.backend.testsupport.IntegrationTest;
-import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
  * The real browser flow against CockroachDB, without Spring Security test shortcuts: fetch a
@@ -55,7 +52,7 @@ class AuthApiIT {
 
 	@Test
 	void fullLoginSessionLogoutFlow() throws Exception {
-		Browser browser = new Browser();
+		Browser browser = new Browser(mvc);
 
 		browser.send(get("/api/auth/me")).andExpect(status().isUnauthorized());
 		browser.send(get("/api/todos")).andExpect(status().isUnauthorized());
@@ -76,7 +73,7 @@ class AuthApiIT {
 
 	@Test
 	void adminCanLogIn() throws Exception {
-		new Browser().login("admin", "admin")
+		new Browser(mvc).login("admin", "admin")
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.displayName").value("Administrator"))
 			.andExpect(jsonPath("$.role").value("ADMIN"))
@@ -85,12 +82,12 @@ class AuthApiIT {
 
 	@Test
 	void usernameIsCaseInsensitive() throws Exception {
-		new Browser().login("David", "david").andExpect(status().isOk()).andExpect(jsonPath("$.username").value("david"));
+		new Browser(mvc).login("David", "david").andExpect(status().isOk()).andExpect(jsonPath("$.username").value("david"));
 	}
 
 	@Test
 	void wrongPasswordIsRejected() throws Exception {
-		Browser browser = new Browser();
+		Browser browser = new Browser(mvc);
 
 		browser.login("david", "admin")
 			.andExpect(status().isUnauthorized())
@@ -102,36 +99,6 @@ class AuthApiIT {
 	void loginWithoutCsrfTokenIsForbidden() throws Exception {
 		mvc.perform(post("/api/auth/login").param("username", "david").param("password", "david"))
 			.andExpect(status().isForbidden());
-	}
-
-	/** Keeps the session and the XSRF-TOKEN cookie between requests, like a browser. */
-	private class Browser {
-
-		private final MockHttpSession session = new MockHttpSession();
-
-		private String csrfToken;
-
-		org.springframework.test.web.servlet.ResultActions send(MockHttpServletRequestBuilder request) throws Exception {
-			request.session(session);
-			if (csrfToken != null) {
-				request.cookie(new Cookie("XSRF-TOKEN", csrfToken)).header("X-XSRF-TOKEN", csrfToken);
-			}
-			var actions = mvc.perform(request);
-			MvcResult result = actions.andReturn();
-			Cookie issued = result.getResponse().getCookie("XSRF-TOKEN");
-			if (issued != null) {
-				csrfToken = issued.getMaxAge() == 0 ? null : issued.getValue();
-			}
-			return actions;
-		}
-
-		org.springframework.test.web.servlet.ResultActions login(String username, String password) throws Exception {
-			if (csrfToken == null) {
-				send(get("/api/auth/csrf")).andExpect(status().isNoContent());
-			}
-			return send(post("/api/auth/login").param("username", username).param("password", password));
-		}
-
 	}
 
 }

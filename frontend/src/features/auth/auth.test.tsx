@@ -4,9 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, request } from '../../lib/http.ts'
 import { renderApp } from '../../test/renderApp.tsx'
 import { todosApi } from '../todos/api.ts'
-import { authApi, CurrentUser } from './api.ts'
+import { authApi, CurrentUser, Visitor } from './api.ts'
 
-vi.mock('./api.ts', () => ({ authApi: { me: vi.fn(), login: vi.fn(), logout: vi.fn() } }))
+vi.mock('./api.ts', () => ({ authApi: { me: vi.fn(), anonymous: vi.fn(), login: vi.fn(), logout: vi.fn() } }))
 vi.mock('../todos/api.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../todos/api.ts')>()),
   todosApi: { list: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn() },
@@ -15,7 +15,14 @@ vi.mock('../todos/api.ts', async (importOriginal) => ({
 const mockedAuth = vi.mocked(authApi)
 const mockedTodos = vi.mocked(todosApi)
 
-const david: CurrentUser = { username: 'david', displayName: 'David Bejar', role: 'USER', roleDisplayName: 'User' }
+const david: CurrentUser = {
+  username: 'david',
+  displayName: 'David Bejar',
+  role: 'USER',
+  roleDisplayName: 'User',
+  screens: ['TODO'],
+}
+const anonymous: Visitor = { role: 'ANONYMOUS', roleDisplayName: 'Not logged', screens: ['LOGIN'] }
 const notSignedIn = () => new ApiError(401, '401 Unauthorized')
 
 async function signIn(username: string, password: string) {
@@ -30,6 +37,7 @@ describe('authentication', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     mockedAuth.me.mockRejectedValue(notSignedIn())
+    mockedAuth.anonymous.mockResolvedValue(anonymous)
     mockedTodos.list.mockResolvedValue([])
   })
 
@@ -38,6 +46,23 @@ describe('authentication', () => {
 
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
     expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password')
+    expect(within(screen.getByRole('banner')).getByText('Not logged')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Log out' })).not.toBeInTheDocument()
+  })
+
+  it('still offers the login page when the backend cannot describe anonymous access', async () => {
+    mockedAuth.anonymous.mockRejectedValue(new Error('down'))
+    renderApp('/')
+
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+  })
+
+  it('lets anonymous visitors open screens their role allows', async () => {
+    mockedAuth.anonymous.mockResolvedValue({ ...anonymous, screens: ['LOGIN', 'TODO'] })
+    renderApp('/todos')
+
+    expect(await screen.findByRole('heading', { name: 'Todos' })).toBeInTheDocument()
+    expect(within(screen.getByRole('banner')).getByText('Not logged')).toBeInTheDocument()
   })
 
   it('redirects to the login page when opening Todos without a session', async () => {
@@ -110,6 +135,7 @@ describe('authentication', () => {
     expect(mockedAuth.logout).toHaveBeenCalledTimes(1)
     expect(router.state.location.pathname).toBe('/')
     expect(screen.queryByText('David Bejar')).not.toBeInTheDocument()
+    expect(screen.getByText('Not logged')).toBeInTheDocument()
   })
 
   it('returns to the login page when the session expires', async () => {

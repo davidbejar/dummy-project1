@@ -1,9 +1,15 @@
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { onUnauthorized } from '../../lib/http.ts'
-import { authApi } from './api.ts'
+import { authApi, Visitor } from './api.ts'
 import { AuthContext, AuthState } from './authContext.ts'
 
-const ANONYMOUS: AuthState = { status: 'anonymous', user: null }
+/** Used when the backend can't say what anonymous visitors may open: the login page only. */
+const DEFAULT_VISITOR: Visitor = { role: 'ANONYMOUS', roleDisplayName: 'Not logged', screens: ['LOGIN'] }
+
+async function anonymousState(): Promise<AuthState> {
+  const visitor = await authApi.anonymous().catch(() => DEFAULT_VISITOR)
+  return { status: 'anonymous', user: null, visitor }
+}
 
 /** Knows who is signed in. Asks the backend once on start, then tracks login and logout. */
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -11,12 +17,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true
+    const update = (next: AuthState) => active && setState(next)
     authApi
       .me()
-      .then((user) => active && setState({ status: 'authenticated', user }))
-      .catch(() => active && setState(ANONYMOUS))
+      .then((user) => update({ status: 'authenticated', user }))
+      .catch(() => anonymousState().then(update))
     // Any 401 from the API means the session is gone (expired, or logged out elsewhere).
-    const unsubscribe = onUnauthorized(() => setState(ANONYMOUS))
+    const unsubscribe = onUnauthorized(() => anonymousState().then(update))
     return () => {
       active = false
       unsubscribe()
@@ -33,10 +40,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await authApi.logout()
     } finally {
-      setState(ANONYMOUS)
+      setState(await anonymousState())
     }
   }, [])
 
-  const value = useMemo(() => ({ state, login, logout }), [state, login, logout])
+  const refresh = useCallback(async () => {
+    const user = await authApi.me()
+    setState({ status: 'authenticated', user })
+  }, [])
+
+  const value = useMemo(() => ({ state, login, logout, refresh }), [state, login, logout, refresh])
   return <AuthContext value={value}>{children}</AuthContext>
 }

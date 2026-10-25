@@ -13,7 +13,11 @@ public class Role {
 	/** Code of the role every user gets unless another is chosen (the column default). */
 	public static final String USER = "USER";
 
+	/** Sees every screen (its assignments are locked); the role cannot be deleted. */
 	public static final String ADMIN = "ADMIN";
+
+	/** The role of visitors who are not signed in. Never given to a user. */
+	public static final String ANONYMOUS = "ANONYMOUS";
 
 	@Id
 	@Column(length = 20)

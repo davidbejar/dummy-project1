@@ -1,6 +1,8 @@
 package com.example.backend.todo;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -16,7 +18,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import com.example.backend.auth.AppUserDetailsService;
+import com.example.backend.auth.ScreenAccess;
 import com.example.backend.auth.SecurityConfig;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -38,6 +42,17 @@ class TodoControllerTests {
 
 	@MockitoBean
 	private AppUserDetailsService userDetailsService;
+
+	@MockitoBean
+	private ScreenAccess screenAccess;
+
+	/** The Todos screen serves this API; david may open it, nobody else may. */
+	@BeforeEach
+	void setUp() {
+		given(screenAccess.screensServing(any())).willReturn(List.of("TODO"));
+		given(screenAccess.canSee(argThat(auth -> auth != null && "david".equals(auth.getName())), eq("TODO")))
+			.willReturn(true);
+	}
 
 	@Test
 	void listsTodos() throws Exception {
@@ -113,6 +128,14 @@ class TodoControllerTests {
 	@Test
 	void requiresAuthentication() throws Exception {
 		mvc.perform(get("/api/todos")).andExpect(status().isUnauthorized());
+		verify(repository, never()).findAllByOrderByCreatedAtAsc();
+	}
+
+	@Test
+	void requiresTheTodoScreen() throws Exception {
+		mvc.perform(get("/api/todos").with(user("miniadmin")))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.detail").value("Not enough permissions"));
 		verify(repository, never()).findAllByOrderByCreatedAtAsc();
 	}
 

@@ -8,7 +8,7 @@ Full-stack scaffold:
 | Database   | CockroachDB 26.3 (single node, via Podman)       | `compose.yaml` |
 | Frontend   | React 19.3, TypeScript, Vite 8, run by Deno 2.9  | `frontend/`  |
 
-The app opens on a login page. After signing in you reach the Todos page, with your name in the top-right corner. Todos are only reachable with a session.
+The app opens on a login page. After signing in you reach the first screen your role may open (Todos for most users), with your name and a logout button in the top-right corner of every screen. Admins also get an Administration screen for managing users, roles and which screens each role can open.
 
 ## Prerequisites
 
@@ -69,10 +69,44 @@ This is the standard pattern for a single-page app served from the same origin a
 |---|---|
 | `GET /api/auth/csrf` | Issues the `XSRF-TOKEN` cookie (the frontend calls it before the first login) |
 | `POST /api/auth/login` | Form fields `username`, `password`. Returns the current user, or 401 with `"Invalid username or password"` |
-| `GET /api/auth/me` | The signed-in user, or 401 |
+| `GET /api/auth/me` | The signed-in user with the codes of the screens they may open, or 401 |
+| `GET /api/auth/anonymous` | Public: the `ANONYMOUS` role ("Not logged") and its screens |
 | `POST /api/auth/logout` | Ends the session (204) |
 
 Every other `/api/**` endpoint answers **401** without a session.
+
+## Screens and permissions
+
+Screens are rows in `app_screen` (`LOGIN`, `TODO`, `ADMINISTRATION`, `USER_ADMIN`, `ROLE_ADMIN`), and `app_role_screen` links roles to the screens they may open (migrations `V5__create_app_screen.sql` and `V6__screen_hierarchy.sql`). The backend code names no screen: each screen's row holds its API path, and each assignment holds whether it is locked.
+
+| `app_screen` column | Purpose |
+|---|---|
+| `code`, `display_name` | Identifier and the name shown in role administration |
+| `sort_order` | Order of screens in lists: the columns of role administration and the screen codes in `/api/auth/me` |
+| `api_path` | Spring path pattern of the screen's API, e.g. `/api/todos/**`, served only to roles that may open the screen. `NULL` when the screen has no API of its own |
+| `parent_code` | The screen this one is reached through, e.g. `ADMINISTRATION` for `USER_ADMIN` and `ROLE_ADMIN`. `NULL` at the top |
+| `anonymous_only` | Only for visitors without a session (`LOGIN`): it belongs to `ANONYMOUS` alone and is not shown in role administration |
+
+| Role | Screens |
+|---|---|
+| `ANONYMOUS` ("Not logged", anyone without a session) | Login |
+| `USER` | Todos |
+| `ADMIN` | All screens except Login |
+
+- **Backend:** a request matching a screen's `api_path` is served only to roles linked to that screen, checked against the database on every request (`ScreenAccess`), so changes apply to running sessions at once. Other `/api/**` requests need any session. Screens themselves are read once at startup, since they only change through migrations. Signed-in users without access get **403** with `"Not enough permissions"`; anonymous visitors get 401.
+
+  | `api_path` | Screen |
+  |---|---|
+  | `/api/todos/**` | `TODO` |
+  | `/api/admin/users/**` | `USER_ADMIN` |
+  | `/api/admin/roles/**` | `ROLE_ADMIN` |
+
+- **Frontend:** every route is wrapped in `RequireScreen`. A signed-in user opening a screen their role lacks sees "Not enough permissions"; anonymous visitors are sent to the login page.
+- **Hierarchy:** giving a role a screen also gives it the screens above it, and taking a screen away also takes the screens below it. So a role given only Role administration also gets the Administration menu, and losing Administration loses both administration screens.
+- **Administration** is a menu leading to two screens, each with its own permission. The menu lists only the screens the user's role may open.
+  - **User administration:** see, add (with a password) and delete users. `admin` and `david` can't be deleted, and nobody can delete themselves.
+  - **Role administration:** see, add and delete roles, and tick which screens each role may open. `ADMIN` and `ANONYMOUS` can't be deleted, and neither can a role that is still given to users. Assignments marked `locked` can't be removed: all of `ADMIN`'s, so nobody gets locked out. The login screen is not offered: it always belongs to `ANONYMOUS`.
+- **Adding a screen:** in a migration, insert its `app_screen` row (with its `api_path`, and its `parent_code` if it is reached through a menu) and a locked `app_role_screen` row for `ADMIN`. No backend code changes beyond the screen's own controller. In the frontend, add its code and path to `app/screens.ts` (`screens.test.ts` checks the codes exist in the migration) and a `screen(...)` route to its page in `app/routes.tsx`.
 
 **Security properties**
 
@@ -93,7 +127,8 @@ Every other `/api/**` endpoint answers **401** without a session.
 **Frontend**
 
 - `AuthProvider` asks `/api/auth/me` once at startup to learn whether a session exists.
-- `RequireAuth` guards private routes and sends anonymous visitors to the login page, then back to where they were going after login.
+- `AuthProvider` also asks `/api/auth/anonymous` for visitors without a session.
+- `RequireScreen` guards each screen. It sends anonymous visitors to the login page and back to where they were going after login, if the new user may open it.
 - Any 401 from the API (for example an expired session) returns the user to the login page.
 
 Sessions are kept in the backend's memory, so restarting the backend signs everyone out.
@@ -125,7 +160,8 @@ Both sides are organized by feature, so a new feature gets its own folder instea
 
 ```
 backend/src/main/java/com/example/backend/
-  auth/            users, login/logout, SecurityConfig, /api/auth
+  auth/            users, roles, screens, login/logout, SecurityConfig, /api/auth
+  admin/           user and role administration APIs
   todo/            Todo entity, repository, REST controller
   common/web/      shared web code (error responses)
 backend/src/main/resources/
@@ -135,17 +171,20 @@ backend/src/main/resources/
 
 frontend/src/
   main.tsx                  entry point: AuthProvider + router
-  app/routes.tsx            route table (public vs. signed-in pages)
+  app/routes.tsx            route table, each screen behind RequireScreen
+  app/screens.ts            screen codes and their paths
   lib/http.ts               shared API client: CSRF, errors, 401 handling
-  components/AppLayout.tsx  header with user name and logout
-  features/auth/            login page, AuthProvider, useAuth, RequireAuth
+  components/AppHeader.tsx  shared header: navigation, user name and logout
+  components/AppLayout.tsx  shell for every screen (header + page)
+  features/auth/            login page, AuthProvider, useAuth, RequireScreen
+  features/admin/           administration menu, user and role administration
   features/todos/           Todos page and its API
   test/                     test setup and renderApp() helper
 ```
 
 **Adding a feature.**
 
-- **Backend:** create a new package next to `todo/`. Its endpoints are protected automatically.
+- **Backend:** create a new package next to `todo/`. Its endpoints require a session automatically; to limit them to a screen's roles, set that screen's `api_path` (see *Adding a screen*).
 - **Frontend:** create `features/<name>/` with an `api.ts` that uses `lib/http.ts`, and add its page as a child route under `AppLayout` in `app/routes.tsx`.
 
 ## Frontend and Deno

@@ -1,8 +1,8 @@
 import { FormEvent, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router'
+import { canOpenPath, homePath } from '../../app/screens.ts'
+import { CurrentUser } from './api.ts'
 import { useAuth } from './useAuth.ts'
-
-const HOME_PATH = '/todos'
 
 export function LoginPage() {
   const { state, login } = useAuth()
@@ -13,10 +13,12 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  const from = (location.state as { from?: string } | null)?.from ?? HOME_PATH
+  // Where the user was going before being sent here, if they may open it; otherwise their first screen.
+  const from = (location.state as { from?: string } | null)?.from
+  const target = (user: CurrentUser) => (from && canOpenPath(from, user.screens) ? from : homePath(user.screens))
 
   if (state.status === 'loading') return <p className="loading" role="status">Loading…</p>
-  if (state.status === 'authenticated') return <Navigate to={from} replace />
+  if (state.status === 'authenticated') return <Navigate to={target(state.user)} replace />
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -26,8 +28,8 @@ export function LoginPage() {
     }
     setSubmitting(true)
     try {
-      await login(username.trim(), password)
-      navigate(from, { replace: true })
+      const user = await login(username.trim(), password)
+      navigate(target(user), { replace: true })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
       setPassword('')
