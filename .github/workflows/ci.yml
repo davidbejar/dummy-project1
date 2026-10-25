@@ -30,7 +30,9 @@ jobs:
       - run: deno task check
       # Same as `deno task test`, but with -A: on Linux, Vite's WSL check reads
       # /proc/sys/fs/binfmt_misc/WSLInterop, which Deno only allows with --allow-all.
-      - run: deno run -A npm:vitest run
+      # --pool=forks: on Linux, Deno lacks parentPort.removeAllListeners, which the
+      # threads pool calls at teardown. Forks need --allow-run, which -A already grants.
+      - run: deno run -A npm:vitest run --pool=forks
 
   backend-unit:
     name: Backend unit tests
