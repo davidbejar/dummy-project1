@@ -1,22 +1,23 @@
 import { render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import App from './App.tsx'
-import { api, NETWORK_ERROR_MESSAGE, TITLE_BLANK_MESSAGE, TITLE_MAX_LENGTH, TITLE_TOO_LONG_MESSAGE, Todo } from './api.ts'
+import { TodosPage } from './TodosPage.tsx'
+import { NETWORK_ERROR_MESSAGE } from '../../lib/http.ts'
+import { TITLE_BLANK_MESSAGE, TITLE_MAX_LENGTH, TITLE_TOO_LONG_MESSAGE, Todo, todosApi } from './api.ts'
 
 // Mock only the network calls; keep the real constants and validateTitle.
 vi.mock('./api.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./api.ts')>()),
-  api: { list: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn() },
+  todosApi: { list: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn() },
 }))
 
-const mockedApi = vi.mocked(api)
+const mockedApi = vi.mocked(todosApi)
 
 function todo(overrides: Partial<Todo> = {}): Todo {
   return { id: '1', title: 'Buy milk', completed: false, createdAt: '2026-01-01T00:00:00Z', ...overrides }
 }
 
-describe('App', () => {
+describe('TodosPage', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     mockedApi.list.mockResolvedValue([])
@@ -25,7 +26,7 @@ describe('App', () => {
   it('renders todos loaded from the API', async () => {
     mockedApi.list.mockResolvedValue([todo(), todo({ id: '2', title: 'Walk dog' })])
 
-    render(<App />)
+    render(<TodosPage />)
 
     expect(await screen.findByText('Buy milk')).toBeInTheDocument()
     expect(screen.getByText('Walk dog')).toBeInTheDocument()
@@ -34,7 +35,7 @@ describe('App', () => {
   it('adds a todo and clears the input', async () => {
     mockedApi.create.mockResolvedValue(todo({ title: 'New task' }))
     const user = userEvent.setup()
-    render(<App />)
+    render(<TodosPage />)
 
     const input = screen.getByPlaceholderText('What needs doing?')
     await user.type(input, '  New task  ')
@@ -47,7 +48,7 @@ describe('App', () => {
 
   it('does not submit a blank title and says why', async () => {
     const user = userEvent.setup()
-    render(<App />)
+    render(<TodosPage />)
 
     await user.type(screen.getByPlaceholderText('What needs doing?'), '   ')
     await user.click(screen.getByRole('button', { name: 'Add' }))
@@ -57,7 +58,7 @@ describe('App', () => {
   })
 
   it('limits the input to the max title length', () => {
-    render(<App />)
+    render(<TodosPage />)
 
     expect(screen.getByPlaceholderText('What needs doing?')).toHaveAttribute('maxLength', String(TITLE_MAX_LENGTH))
   })
@@ -65,7 +66,7 @@ describe('App', () => {
   it('shows a clear message when the server is unreachable', async () => {
     mockedApi.create.mockRejectedValue(new Error(NETWORK_ERROR_MESSAGE))
     const user = userEvent.setup()
-    render(<App />)
+    render(<TodosPage />)
 
     await user.type(screen.getByPlaceholderText('What needs doing?'), 'Task')
     await user.click(screen.getByRole('button', { name: 'Add' }))
@@ -77,7 +78,7 @@ describe('App', () => {
   it('shows the backend validation message', async () => {
     mockedApi.create.mockRejectedValue(new Error(TITLE_TOO_LONG_MESSAGE))
     const user = userEvent.setup()
-    render(<App />)
+    render(<TodosPage />)
 
     await user.type(screen.getByPlaceholderText('What needs doing?'), 'Task')
     await user.click(screen.getByRole('button', { name: 'Add' }))
@@ -88,7 +89,7 @@ describe('App', () => {
   it('clears the error after a successful action', async () => {
     mockedApi.create.mockRejectedValueOnce(new Error(NETWORK_ERROR_MESSAGE)).mockResolvedValueOnce(todo({ title: 'Task' }))
     const user = userEvent.setup()
-    render(<App />)
+    render(<TodosPage />)
 
     await user.type(screen.getByPlaceholderText('What needs doing?'), 'Task')
     await user.click(screen.getByRole('button', { name: 'Add' }))
@@ -104,7 +105,7 @@ describe('App', () => {
     mockedApi.list.mockResolvedValue([todo()])
     mockedApi.update.mockRejectedValue(new Error(NETWORK_ERROR_MESSAGE))
     const user = userEvent.setup()
-    render(<App />)
+    render(<TodosPage />)
 
     await user.click(await screen.findByRole('checkbox'))
 
@@ -116,7 +117,7 @@ describe('App', () => {
     mockedApi.list.mockResolvedValue([todo()])
     mockedApi.update.mockResolvedValue(todo({ completed: true }))
     const user = userEvent.setup()
-    render(<App />)
+    render(<TodosPage />)
 
     await user.click(await screen.findByRole('checkbox'))
 
@@ -128,7 +129,7 @@ describe('App', () => {
     mockedApi.list.mockResolvedValue([todo()])
     mockedApi.remove.mockResolvedValue(undefined)
     const user = userEvent.setup()
-    render(<App />)
+    render(<TodosPage />)
 
     await user.click(await screen.findByRole('button', { name: 'Delete Buy milk' }))
 
@@ -139,7 +140,7 @@ describe('App', () => {
   it('shows an error when loading fails', async () => {
     mockedApi.list.mockRejectedValue(new Error('500 Internal Server Error'))
 
-    render(<App />)
+    render(<TodosPage />)
 
     expect(await screen.findByText(/500 Internal Server Error/)).toBeInTheDocument()
   })

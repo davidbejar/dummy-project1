@@ -10,6 +10,7 @@
     "npm:@vitejs/plugin-react@6.1.2": "6.1.2_vite@8.3.5",
     "npm:jsdom@30.1.3": "30.1.3",
     "npm:react-dom@19.3.1": "19.3.1_react@19.3.1",
+    "npm:react-router@8.5.0": "8.5.0_@types+react@19.3.0_@types+react-dom@19.3.0_react@19.3.1_react-dom@19.3.1",
     "npm:react@19.3.1": "19.3.1",
     "npm:vite@*": "8.3.5",
     "npm:vite@8.3.5": "8.3.5",
@@ -115,6 +116,9 @@
     },
     "@oxc-project/types@0.155.0": {
       "integrity": "sha512-SeE8JPwW1xs1tHeNycjUtUBdhorRa8o4jlvjwk49R7/Z291i+4DQa7JJIgOm/TaYQZx+QrPQbVJ/9c8dMIZN8Q=="
+    },
+    "@remix-run/route-pattern@0.22.1": {
+      "integrity": "sha512-czdGJWh09Lapvcqt7Vb09KlrU2PhRJ8xQaI+AItTuD9aDJ5MAgxnS38lnys6Ll+6RJEqPiaUqTwIQhVLwFvv+w=="
     },
     "@rolldown/binding-android-arm-eabi@1.2.15": {
       "integrity": "sha512-aLcgK9gIJ3YRvrrtfSBbRa27F5WrpiTaPulnFpsHPxpUHgFlSgnU4854MHwoRGEBhfRJDWCS2WQ7lIjskE9Olw==",
@@ -318,6 +322,9 @@
     },
     "chai@6.3.0": {
       "integrity": "sha512-XWAtwJ6OHO+tj0EKCs0Y2UamnyOxseZWltU4x2U2wh8g4AigdjwvtUjvLP2tqkA/avxHEtzxNaqGq/YGNwckKg=="
+    },
+    "cookie-es@3.1.1": {
+      "integrity": "sha512-UaXxwISYJPTr9hwQxMFYZ7kNhSXboMXP+Z3TRX6f1/NyaGPfuNUZOWP1pUEb75B2HjfklIYLVRfWiFZJyC6Npg=="
     },
     "css-tree@3.2.1": {
       "integrity": "sha512-X7sjQzceUhu1u7Y/ylrRZFU2FS6LRiFVp6rKLPg23y3x3c3DOKAwuXGDp+PAGjh6CSnCjYeAul8pcT8bAl+lSA==",
@@ -564,6 +571,22 @@
     "react-is@17.0.2": {
       "integrity": "sha512-w2GsyukL62IJnlaff/nRegPQR94C/XXamvMWmSHRJ4y7Ts/4ocGRmTHvOs8PSE6pB3dWOrD/nueuU5sduBsQ4w=="
     },
+    "react-router@8.5.0_@types+react@19.3.0_@types+react-dom@19.3.0_react@19.3.1_react-dom@19.3.1": {
+      "integrity": "sha512-9nEd/deifcTJIIcUaNIyQGkyXD0D6QVB9XD2O5GgHpP3xu3U5RXm87YQ8++Wn8JQWgMBM/5+PjWPM/7n7O7WHA==",
+      "dependencies": [
+        "@remix-run/route-pattern",
+        "@types/react",
+        "@types/react-dom",
+        "cookie-es",
+        "react",
+        "react-dom"
+      ],
+      "optionalPeers": [
+        "@types/react",
+        "@types/react-dom",
+        "react-dom"
+      ]
+    },
     "react@19.3.1": {
       "integrity": "sha512-QNhWdt7nrgVWWQG58QuGsAR3jv3Hbe4mb4vz7w2csnHavciZJgda1CPNaldF6eVxv90ud3jUXpKlHL69gO38yw=="
     },
@@ -741,6 +764,7 @@
       "npm:@vitejs/plugin-react@6.1.2",
       "npm:jsdom@30.1.3",
       "npm:react-dom@19.3.1",
+      "npm:react-router@8.5.0",
       "npm:react@19.3.1",
       "npm:vite@8.3.5",
       "npm:vitest@5.0.5"

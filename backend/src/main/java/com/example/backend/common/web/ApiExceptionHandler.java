@@ -1,4 +1,4 @@
-package com.example.backend;
+package com.example.backend.common.web;
 
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;

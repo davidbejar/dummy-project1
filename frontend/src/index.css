@@ -1,11 +1,33 @@
 :root {
   font-family: system-ui, sans-serif;
   color-scheme: light dark;
+  --border: #8884;
+  --error: #d33;
 }
+body { margin: 0; }
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.brand { font-weight: 600; }
+.user-menu { display: flex; align-items: center; gap: 0.75rem; }
+.user-name { font-weight: 500; }
+
 main { max-width: 32rem; margin: 3rem auto; padding: 0 1rem; }
-form { display: flex; gap: 0.5rem; }
-form input { flex: 1; padding: 0.5rem; }
-ul { list-style: none; padding: 0; }
-li { display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 0; border-bottom: 1px solid #8884; }
-li.done label { text-decoration: line-through; opacity: 0.6; }
-.error { color: #d33; }
+.loading { text-align: center; margin-top: 3rem; }
+.error { color: var(--error); }
+
+.login form { display: flex; flex-direction: column; gap: 0.75rem; }
+.login label { display: flex; flex-direction: column; gap: 0.25rem; }
+.login input { padding: 0.5rem; }
+.login button { padding: 0.5rem; }
+
+.todos form { display: flex; gap: 0.5rem; }
+.todos form input { flex: 1; padding: 0.5rem; }
+.todos ul { list-style: none; padding: 0; }
+.todos li { display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 0; border-bottom: 1px solid var(--border); }
+.todos li.done label { text-decoration: line-through; opacity: 0.6; }

@@ -16,9 +16,20 @@ spring:
     # CockroachDB 26+ blocks crdb_internal by default, but Flyway reads it to detect the
     # server version. Allow it on Flyway's own connection only, not the app's pool.
     init-sqls: SET allow_unsafe_internals = true
+    # db/dev-data holds development seed data (e.g. the admin and david users).
+    # In production, set FLYWAY_LOCATIONS=classpath:db/migration to leave it out.
+    locations: ${FLYWAY_LOCATIONS:classpath:db/migration,classpath:db/dev-data}
 
 server:
   port: 8080
+  servlet:
+    session:
+      timeout: 30m
+      cookie:
+        http-only: true
+        same-site: lax
+        # Set SESSION_COOKIE_SECURE=true when served over HTTPS.
+        secure: ${SESSION_COOKIE_SECURE:false}
 
 management:
   endpoints:

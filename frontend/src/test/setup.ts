@@ -6,4 +6,12 @@ import { afterEach, vi } from 'vitest'
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  clearCookies()
 })
+
+function clearCookies() {
+  if (typeof document === 'undefined') return
+  for (const cookie of document.cookie.split('; ').filter(Boolean)) {
+    document.cookie = `${cookie.split('=')[0]}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`
+  }
+}

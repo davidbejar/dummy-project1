@@ -2,6 +2,8 @@ package com.example.backend.todo;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -21,6 +23,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
  * End-to-end test against a real CockroachDB (start it with {@code podman compose up -d}).
@@ -45,7 +48,7 @@ class TodoApiIT {
 
 	@Test
 	void crudRoundTripPersistsToDatabase() throws Exception {
-		String body = mvc.perform(post("/api/todos").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"IT check\"}"))
+		String body = mvc.perform(authed(post("/api/todos").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"IT check\"}")))
 			.andExpect(status().isCreated())
 			.andReturn()
 			.getResponse()
@@ -53,14 +56,14 @@ class TodoApiIT {
 		UUID id = UUID.fromString(JsonPath.read(body, "$.id"));
 		assertThat(repository.findById(id)).isPresent();
 
-		mvc.perform(patch("/api/todos/" + id).contentType(MediaType.APPLICATION_JSON).content("{\"completed\":true}"))
+		mvc.perform(authed(patch("/api/todos/" + id).contentType(MediaType.APPLICATION_JSON).content("{\"completed\":true}")))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.completed").value(true));
 		assertThat(repository.findById(id)).get().extracting(Todo::isCompleted).isEqualTo(true);
 
-		mvc.perform(get("/api/todos")).andExpect(status().isOk());
+		mvc.perform(authed(get("/api/todos"))).andExpect(status().isOk());
 
-		mvc.perform(delete("/api/todos/" + id)).andExpect(status().isNoContent());
+		mvc.perform(authed(delete("/api/todos/" + id))).andExpect(status().isNoContent());
 		assertThat(repository.existsById(id)).isFalse();
 	}
 
@@ -89,7 +92,7 @@ class TodoApiIT {
 	@Test
 	void maxLengthTitleRoundTripsThroughCockroachDb() throws Exception {
 		String title = "x".repeat(Todo.TITLE_MAX_LENGTH);
-		String body = mvc.perform(post("/api/todos").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"" + title + "\"}"))
+		String body = mvc.perform(authed(post("/api/todos").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"" + title + "\"}")))
 			.andExpect(status().isCreated())
 			.andReturn()
 			.getResponse()
@@ -104,8 +107,8 @@ class TodoApiIT {
 	void tooLongTitleIsRejectedBeforeReachingDatabase() throws Exception {
 		long before = repository.count();
 
-		mvc.perform(post("/api/todos").contentType(MediaType.APPLICATION_JSON)
-				.content("{\"title\":\"" + "x".repeat(Todo.TITLE_MAX_LENGTH + 1) + "\"}"))
+		mvc.perform(authed(post("/api/todos").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"title\":\"" + "x".repeat(Todo.TITLE_MAX_LENGTH + 1) + "\"}")))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.detail").value("Title must be at most 255 characters"));
 
@@ -124,6 +127,15 @@ class TodoApiIT {
 		assertThatThrownBy(() -> jdbc.update("INSERT INTO todo (title) VALUES (?)", "   "))
 			.isInstanceOf(DataIntegrityViolationException.class)
 			.hasMessageContaining("CHECK constraint");
+	}
+
+	@Test
+	void todosRequireAuthentication() throws Exception {
+		mvc.perform(get("/api/todos")).andExpect(status().isUnauthorized());
+	}
+
+	private static MockHttpServletRequestBuilder authed(MockHttpServletRequestBuilder request) {
+		return request.with(user("david")).with(csrf());
 	}
 
 }

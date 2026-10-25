@@ -1,17 +1,17 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { api, TITLE_MAX_LENGTH, Todo, validateTitle } from './api.ts'
+import { TITLE_MAX_LENGTH, Todo, todosApi, validateTitle } from './api.ts'
 
 function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
 }
 
-export default function App() {
+export function TodosPage() {
   const [todos, setTodos] = useState<Todo[]>([])
   const [title, setTitle] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    api.list().then(setTodos).catch((e: unknown) => setError(message(e)))
+    todosApi.list().then(setTodos).catch((e: unknown) => setError(message(e)))
   }, [])
 
   // Runs an API action, showing its error or clearing a previous one on success.
@@ -32,7 +32,7 @@ export default function App() {
       return
     }
     return run(async () => {
-      const todo = await api.create(title.trim())
+      const todo = await todosApi.create(title.trim())
       setTodos((ts) => [...ts, todo])
       setTitle('')
     })
@@ -40,20 +40,20 @@ export default function App() {
 
   function toggle(todo: Todo) {
     return run(async () => {
-      const updated = await api.update(todo.id, { completed: !todo.completed })
+      const updated = await todosApi.update(todo.id, { completed: !todo.completed })
       setTodos((ts) => ts.map((t) => (t.id === updated.id ? updated : t)))
     })
   }
 
   function remove(id: string) {
     return run(async () => {
-      await api.remove(id)
+      await todosApi.remove(id)
       setTodos((ts) => ts.filter((t) => t.id !== id))
     })
   }
 
   return (
-    <main>
+    <main className="todos">
       <h1>Todos</h1>
       {error && <p className="error" role="alert">{error}</p>}
       <form onSubmit={add}>

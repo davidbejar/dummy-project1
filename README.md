@@ -8,7 +8,7 @@ Full-stack scaffold:
 | Database   | CockroachDB 26.3 (single node, via Podman)       | `compose.yaml` |
 | Frontend   | React 19.3, TypeScript, Vite 8, run by Deno 2.9  | `frontend/`  |
 
-A sample `Todo` resource is wired end to end (`/api/todos`) so you can see each layer working.
+The app opens on a login page. After signing in you reach the Todos page, with your name in the top-right corner. Todos are only reachable with a session.
 
 ## Prerequisites
 
@@ -40,6 +40,13 @@ A sample `Todo` resource is wired end to end (`/api/todos`) so you can see each 
    cd frontend && deno install && deno task dev
    ```
 
+4. **Sign in** with one of the development users:
+
+   | Username | Password | Name shown | Role |
+   |---|---|---|---|
+   | `admin` | `admin` | Administrator | ADMIN |
+   | `david` | `david` | David Bejar | USER |
+
 ## Configuration
 
 The backend reads its connection from environment variables, defaulting to the local Docker node:
@@ -53,6 +60,43 @@ The backend reads its connection from environment variables, defaulting to the l
 CockroachDB is PostgreSQL wire-compatible, so the standard Postgres JDBC driver is used; Hibernate auto-selects its `CockroachDialect`. The local node runs in `--insecure` mode, which is for local development only.
 
 CockroachDB 26+ blocks `crdb_internal` by default, which Flyway needs for version detection. `spring.flyway.init-sqls` enables it on Flyway's connection only.
+
+## Authentication
+
+This is the standard pattern for a single-page app served from the same origin as its API: **server-side sessions** with Spring Security, not JWTs.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/auth/csrf` | Issues the `XSRF-TOKEN` cookie (the frontend calls it before the first login) |
+| `POST /api/auth/login` | Form fields `username`, `password`. Returns the current user, or 401 with `"Invalid username or password"` |
+| `GET /api/auth/me` | The signed-in user, or 401 |
+| `POST /api/auth/logout` | Ends the session (204) |
+
+Every other `/api/**` endpoint answers **401** without a session.
+
+**Security properties**
+
+- **Session cookie:** the session id is in a `JSESSIONID` cookie that is `HttpOnly` (JavaScript can't read it, so XSS can't steal it) and `SameSite=Lax`. Sessions time out after 30 minutes.
+- **No sessions before login:** anonymous requests never create a session, and Spring Security issues a new session id at login, so a session id planted before login can't be reused (session fixation).
+- **CSRF:** the double-submit pattern. The readable `XSRF-TOKEN` cookie is echoed in an `X-XSRF-TOKEN` header on every change, and the token is replaced at login.
+- **Passwords** are stored as bcrypt hashes (`{bcrypt}$2a$10$…`), never in plain text.
+- **No username probing:** an unknown user and a wrong password get the same error.
+- **Case-insensitive usernames:** they're stored lowercase, so `David` and `david` are the same account.
+
+**Users**
+
+- The schema is created in `db/migration/V3__create_app_user.sql`.
+- The development users come from `db/dev-data/R__seed_dev_users.sql`, which loads by default.
+- In production, set `FLYWAY_LOCATIONS=classpath:db/migration` so the seed users aren't created.
+- Over HTTPS, set `SESSION_COOKIE_SECURE=true`.
+
+**Frontend**
+
+- `AuthProvider` asks `/api/auth/me` once at startup to learn whether a session exists.
+- `RequireAuth` guards private routes and sends anonymous visitors to the login page, then back to where they were going after login.
+- Any 401 from the API (for example an expired session) returns the user to the login page.
+
+Sessions are kept in the backend's memory, so restarting the backend signs everyone out.
 
 ## Data contract
 
@@ -71,24 +115,38 @@ Each `Todo` field has the same type in every layer:
 - **Java:** `@NotBlank`/`@Pattern` and `@Size` on create and update.
 - **CockroachDB:** the `VARCHAR(255)` column and a `CHECK` constraint.
 
-The limit lives in `TITLE_MAX_LENGTH` (`api.ts` and `Todo.java`) and in the migration. `frontend/src/contract.test.ts` fails if they drift apart.
+The limit lives in `TITLE_MAX_LENGTH` (`features/todos/api.ts` and `Todo.java`) and in the migration. `frontend/src/features/todos/contract.test.ts` fails if they drift apart.
 
 Validation errors come back as RFC 9457 problem details, and the UI shows their `detail` text. If the backend is unreachable, the UI says so instead of showing a raw `Failed to fetch`.
 
 ## Project layout
 
+Both sides are organized by feature, so a new feature gets its own folder instead of spreading across the code.
+
 ```
-backend/
-  src/main/java/com/example/backend/todo/   entity, repository, REST controller
-  src/main/resources/application.yml        datasource / JPA config
-  src/main/resources/db/migration/          Flyway SQL migrations
-frontend/
-  deno.json                                 dependencies, tasks, sandbox permissions
-  src/api.ts                                typed API client
-  src/App.tsx                               Todo UI
-  src/*.test.ts(x)                          Vitest unit tests
-  src/test/setup.ts                         test setup (jest-dom matchers, cleanup)
+backend/src/main/java/com/example/backend/
+  auth/            users, login/logout, SecurityConfig, /api/auth
+  todo/            Todo entity, repository, REST controller
+  common/web/      shared web code (error responses)
+backend/src/main/resources/
+  application.yml           datasource / JPA / session config
+  db/migration/             Flyway schema migrations (all environments)
+  db/dev-data/              development seed data (users)
+
+frontend/src/
+  main.tsx                  entry point: AuthProvider + router
+  app/routes.tsx            route table (public vs. signed-in pages)
+  lib/http.ts               shared API client: CSRF, errors, 401 handling
+  components/AppLayout.tsx  header with user name and logout
+  features/auth/            login page, AuthProvider, useAuth, RequireAuth
+  features/todos/           Todos page and its API
+  test/                     test setup and renderApp() helper
 ```
+
+**Adding a feature.**
+
+- **Backend:** create a new package next to `todo/`. Its endpoints are protected automatically.
+- **Frontend:** create `features/<name>/` with an `api.ts` that uses `lib/http.ts`, and add its page as a child route under `AppLayout` in `app/routes.tsx`.
 
 ## Frontend and Deno
 
@@ -111,11 +169,11 @@ Each task runs inside Deno's permission sandbox:
 - **Reads** are unrestricted, because Vite looks for `package.json` in every parent directory.
 - **FFI** is allowed because Vite 8's bundler, Rolldown, is a native library.
 
-Imports of local files use explicit extensions (`./App.tsx`), as Deno requires.
+Imports of local files use explicit extensions (`./TodosPage.tsx`), as Deno requires.
 
 ## Tests
 
-Frontend unit tests (Vitest + React Testing Library + jsdom):
+Frontend unit tests (Vitest + React Testing Library + jsdom), covering the HTTP client, login and route guards, and Todos:
 
 ```bash
 cd frontend && deno task test
@@ -127,7 +185,7 @@ Backend unit tests (no database needed):
 cd backend && ./mvnw test
 ```
 
-Unit + integration tests (`*IT.java`, run against the CockroachDB from `podman compose up -d`):
+Unit + integration tests (`*IT.java`, run against the CockroachDB from `podman compose up -d`), including the real login flow over HTTP:
 
 ```bash
 cd backend && ./mvnw verify
