@@ -185,7 +185,7 @@ Backend unit tests (no database needed):
 cd backend && ./mvnw test
 ```
 
-Unit + integration tests (`*IT.java`, run against the CockroachDB from `podman compose up -d`), including the real login flow over HTTP:
+Unit + integration tests (`*IT.java`, run against the CockroachDB from `podman compose up -d`), including the real login flow over HTTP. Integration tests are annotated with `@IntegrationTest`, which activates the `it` profile ([`application-it.yml`](backend/src/test/resources/application-it.yml)): they use their own `app_test` database (created automatically, migrated and seeded with `admin` and `david` by Flyway), so your data in `app` is never touched:
 
 ```bash
 cd backend && ./mvnw verify

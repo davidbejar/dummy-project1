@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.example.backend.testsupport.IntegrationTest;
 import com.jayway.jsonpath.JsonPath;
 import java.util.Map;
 import java.util.UUID;
@@ -29,6 +30,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  * End-to-end test against a real CockroachDB (start it with {@code podman compose up -d}).
  */
 @SpringBootTest
+@IntegrationTest
 @AutoConfigureMockMvc
 class TodoApiIT {
 

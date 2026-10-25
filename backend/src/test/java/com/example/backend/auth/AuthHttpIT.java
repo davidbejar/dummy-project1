@@ -2,6 +2,7 @@ package com.example.backend.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.example.backend.testsupport.IntegrationTest;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -20,6 +21,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
  * exactly what a browser sees.
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
+@IntegrationTest
 class AuthHttpIT {
 
 	@LocalServerPort

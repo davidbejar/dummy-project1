@@ -1,0 +1,10 @@
+# Integration tests (*IT.java, via @IntegrationTest) use their own database so they never
+# touch the developer's `app` data. IntegrationTestDatabase creates it if it's missing.
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:26257/app_test?sslmode=disable
+    username: root
+    password:
+  flyway:
+    # The tests log in as the seeded admin and david users.
+    locations: classpath:db/migration,classpath:db/dev-data
