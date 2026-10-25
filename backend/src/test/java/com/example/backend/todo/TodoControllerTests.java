@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -27,6 +28,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
@@ -67,6 +69,7 @@ class TodoControllerTests {
 	void rejectsBlankTitle() throws Exception {
 		mvc.perform(authed(post("/api/todos").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"   \"}")))
 			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.title").value("Invalid request"))
 			.andExpect(jsonPath("$.detail").value("Title must not be blank"));
 		verify(repository, never()).save(any());
 	}
@@ -157,11 +160,54 @@ class TodoControllerTests {
 
 	@Test
 	void createsTodo() throws Exception {
-		given(repository.save(any(Todo.class))).willAnswer(inv -> inv.getArgument(0));
+		UUID id = UUID.randomUUID();
+		given(repository.save(any(Todo.class))).willAnswer(inv -> {
+			Todo todo = inv.getArgument(0);
+			ReflectionTestUtils.setField(todo, "id", id);
+			return todo;
+		});
 
 		mvc.perform(authed(post("/api/todos").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"Ship it\"}")))
 			.andExpect(status().isCreated())
-			.andExpect(jsonPath("$.title").value("Ship it"));
+			.andExpect(jsonPath("$.id").value(id.toString()))
+			.andExpect(jsonPath("$.title").value("Ship it"))
+			.andExpect(jsonPath("$.completed").value(false))
+			.andExpect(jsonPath("$.createdAt").isNotEmpty());
+	}
+
+	@Test
+	void updatesTheTitleWithoutSurroundingWhitespace() throws Exception {
+		Todo existing = new Todo("Old");
+		UUID id = UUID.randomUUID();
+		given(repository.findById(id)).willReturn(Optional.of(existing));
+		given(repository.save(existing)).willReturn(existing);
+
+		mvc.perform(authed(patch("/api/todos/" + id).contentType(MediaType.APPLICATION_JSON).content("{\"title\":\" New \"}")))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.title").value("New"))
+			.andExpect(jsonPath("$.completed").value(false));
+	}
+
+	@Test
+	void answersNotFoundWhenUpdatingAMissingTodo() throws Exception {
+		mvc.perform(authed(patch("/api/todos/" + UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content("{\"completed\":true}")))
+			.andExpect(status().isNotFound());
+		verify(repository, never()).save(any());
+	}
+
+	@Test
+	void deletesTodo() throws Exception {
+		UUID id = UUID.randomUUID();
+		given(repository.existsById(id)).willReturn(true);
+
+		mvc.perform(authed(delete("/api/todos/" + id))).andExpect(status().isNoContent());
+		verify(repository).deleteById(id);
+	}
+
+	@Test
+	void answersNotFoundWhenDeletingAMissingTodo() throws Exception {
+		mvc.perform(authed(delete("/api/todos/" + UUID.randomUUID()))).andExpect(status().isNotFound());
+		verify(repository, never()).deleteById(any());
 	}
 
 }

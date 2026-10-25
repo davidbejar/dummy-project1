@@ -230,6 +230,14 @@ Unit + integration tests (`*IT.java`, run against the CockroachDB from `podman c
 cd backend && ./mvnw verify
 ```
 
+Mutation testing with [PIT](https://pitest.org): PIT plants small bugs (mutants) in the compiled backend classes, such as a flipped condition or a removed call, and runs the unit tests against each one. A mutant the tests don't notice (*survived*) points at behaviour no test checks. Only the unit tests (`*Tests`) run, since the integration tests would be far too slow to repeat per mutant. It is not part of `./mvnw verify`; run it on demand:
+
+```bash
+cd backend && ./mvnw test-compile org.pitest:pitest-maven:mutationCoverage
+```
+
+The report is `backend/target/pit-reports/index.html`. It kills 156 of 159 mutants; the survivors are a `flush()` that only matters against a real database and two getters only JPA uses. PIT writes HTML only: its XML report is written while the run goes on, and on a OneDrive-synced folder those writes can time out. For XML, send it outside the synced folder, e.g. `-DoutputFormats=XML,HTML -DreportsDirectory=/tmp/pit`.
+
 If JDK 25 isn't your default `java`, prefix with `JAVA_HOME=/opt/homebrew/opt/openjdk@25`.
 
 ## Security scanning (DAST)

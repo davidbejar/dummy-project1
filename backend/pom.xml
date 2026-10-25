@@ -121,6 +121,38 @@
 					</execution>
 				</executions>
 			</plugin>
+			<!--
+				Mutation testing, run on demand rather than in the normal build:
+				./mvnw test-compile org.pitest:pitest-maven:mutationCoverage
+				Report: target/pit-reports/index.html. Only the unit tests (*Tests) run against
+				the mutants; the *IT tests need CockroachDB and would be far too slow.
+				HTML only: the XML report is written during the run, and on a OneDrive-synced
+				folder those writes can time out and abort it.
+			-->
+			<plugin>
+				<groupId>org.pitest</groupId>
+				<artifactId>pitest-maven</artifactId>
+				<version>1.30.1</version>
+				<dependencies>
+					<dependency>
+						<groupId>org.pitest</groupId>
+						<artifactId>pitest-junit5-plugin</artifactId>
+						<version>1.2.3</version>
+					</dependency>
+				</dependencies>
+				<configuration>
+					<targetClasses>
+						<param>com.example.backend.*</param>
+					</targetClasses>
+					<targetTests>
+						<param>com.example.backend.*Tests</param>
+					</targetTests>
+					<excludedClasses>
+						<param>com.example.backend.BackendApplication</param>
+					</excludedClasses>
+					<timestampedReports>false</timestampedReports>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
 
