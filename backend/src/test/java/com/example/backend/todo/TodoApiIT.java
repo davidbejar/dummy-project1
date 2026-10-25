@@ -2,8 +2,6 @@ package com.example.backend.todo;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -11,11 +9,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.example.backend.testsupport.Browser;
 import com.example.backend.testsupport.IntegrationTest;
 import com.jayway.jsonpath.JsonPath;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -24,10 +24,13 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
  * End-to-end test against a real CockroachDB (start it with {@code podman compose up -d}).
+ * Signs in through the real login with {@link Browser}, not Spring Security's {@code user()}
+ * and {@code csrf()} shortcuts: {@code csrf()} replaces the CSRF token repository in the
+ * Spring context that all integration tests share, which breaks real logins in the tests
+ * that run after it.
  */
 @SpringBootTest
 @IntegrationTest
@@ -43,6 +46,14 @@ class TodoApiIT {
 	@Autowired
 	private TodoRepository repository;
 
+	private Browser david;
+
+	@BeforeEach
+	void signIn() throws Exception {
+		david = new Browser(mvc);
+		david.login("david", "david").andExpect(status().isOk());
+	}
+
 	@Test
 	void connectsToCockroachDb() {
 		assertThat(jdbc.queryForObject("SELECT version()", String.class)).startsWith("CockroachDB");
@@ -50,7 +61,7 @@ class TodoApiIT {
 
 	@Test
 	void crudRoundTripPersistsToDatabase() throws Exception {
-		String body = mvc.perform(authed(post("/api/todos").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"IT check\"}")))
+		String body = david.send(post("/api/todos").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"IT check\"}"))
 			.andExpect(status().isCreated())
 			.andReturn()
 			.getResponse()
@@ -58,14 +69,14 @@ class TodoApiIT {
 		UUID id = UUID.fromString(JsonPath.read(body, "$.id"));
 		assertThat(repository.findById(id)).isPresent();
 
-		mvc.perform(authed(patch("/api/todos/" + id).contentType(MediaType.APPLICATION_JSON).content("{\"completed\":true}")))
+		david.send(patch("/api/todos/" + id).contentType(MediaType.APPLICATION_JSON).content("{\"completed\":true}"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.completed").value(true));
 		assertThat(repository.findById(id)).get().extracting(Todo::isCompleted).isEqualTo(true);
 
-		mvc.perform(authed(get("/api/todos"))).andExpect(status().isOk());
+		david.send(get("/api/todos")).andExpect(status().isOk());
 
-		mvc.perform(authed(delete("/api/todos/" + id))).andExpect(status().isNoContent());
+		david.send(delete("/api/todos/" + id)).andExpect(status().isNoContent());
 		assertThat(repository.existsById(id)).isFalse();
 	}
 
@@ -94,7 +105,7 @@ class TodoApiIT {
 	@Test
 	void maxLengthTitleRoundTripsThroughCockroachDb() throws Exception {
 		String title = "x".repeat(Todo.TITLE_MAX_LENGTH);
-		String body = mvc.perform(authed(post("/api/todos").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"" + title + "\"}")))
+		String body = david.send(post("/api/todos").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"" + title + "\"}"))
 			.andExpect(status().isCreated())
 			.andReturn()
 			.getResponse()
@@ -109,8 +120,8 @@ class TodoApiIT {
 	void tooLongTitleIsRejectedBeforeReachingDatabase() throws Exception {
 		long before = repository.count();
 
-		mvc.perform(authed(post("/api/todos").contentType(MediaType.APPLICATION_JSON)
-				.content("{\"title\":\"" + "x".repeat(Todo.TITLE_MAX_LENGTH + 1) + "\"}")))
+		david.send(post("/api/todos").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"title\":\"" + "x".repeat(Todo.TITLE_MAX_LENGTH + 1) + "\"}"))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.detail").value("Title must be at most 255 characters"));
 
@@ -134,10 +145,6 @@ class TodoApiIT {
 	@Test
 	void todosRequireAuthentication() throws Exception {
 		mvc.perform(get("/api/todos")).andExpect(status().isUnauthorized());
-	}
-
-	private static MockHttpServletRequestBuilder authed(MockHttpServletRequestBuilder request) {
-		return request.with(user("david")).with(csrf());
 	}
 
 }
