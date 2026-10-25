@@ -1,0 +1,20 @@
+# Works with `podman compose` (and `docker compose`).
+services:
+  cockroachdb:
+    image: docker.io/cockroachdb/cockroach:latest-v26.3
+    command: start-single-node --insecure
+    environment:
+      COCKROACH_DATABASE: app
+    ports:
+      - "26257:26257" # SQL
+      - "8081:8080"   # DB Console (http://localhost:8081)
+    volumes:
+      - cockroach-data:/cockroach/cockroach-data
+    healthcheck:
+      test: ["CMD", "cockroach", "sql", "--insecure", "-e", "SELECT 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  cockroach-data:

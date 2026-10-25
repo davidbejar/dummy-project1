@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: backend
+  datasource:
+    # CockroachDB speaks the PostgreSQL wire protocol, so the standard Postgres driver is used.
+    url: ${DB_URL:jdbc:postgresql://localhost:26257/app?sslmode=disable}
+    username: ${DB_USER:root}
+    password: ${DB_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Hibernate detects CockroachDB and picks CockroachDialect automatically.
+      ddl-auto: validate
+  flyway:
+    enabled: true
+    # CockroachDB 26+ blocks crdb_internal by default, but Flyway reads it to detect the
+    # server version. Allow it on Flyway's own connection only, not the app's pool.
+    init-sqls: SET allow_unsafe_internals = true
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
