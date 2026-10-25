@@ -11,17 +11,17 @@ import org.springframework.security.core.userdetails.UserDetails;
  * The authenticated principal kept in the HTTP session. Holds a snapshot of the user, not
  * the JPA entity, so it is safe to serialize.
  */
-public record AppUserDetails(UUID id, String username, String password, String displayName, Role role,
-		boolean enabled) implements UserDetails {
+public record AppUserDetails(UUID id, String username, String password, String displayName, String role,
+		String roleDisplayName, boolean enabled) implements UserDetails {
 
 	static AppUserDetails from(AppUser user) {
 		return new AppUserDetails(user.getId(), user.getUsername(), user.getPasswordHash(), user.getDisplayName(),
-				user.getRole(), user.isEnabled());
+				user.getRole().getCode(), user.getRole().getDisplayName(), user.isEnabled());
 	}
 
 	@Override
 	public Collection<? extends GrantedAuthority> getAuthorities() {
-		return List.of(new SimpleGrantedAuthority(role.authority()));
+		return List.of(new SimpleGrantedAuthority(Role.authority(role)));
 	}
 
 	@Override

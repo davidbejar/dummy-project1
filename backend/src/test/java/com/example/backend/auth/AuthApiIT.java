@@ -41,9 +41,10 @@ class AuthApiIT {
 		AppUser admin = users.findByUsername("admin").orElseThrow();
 		AppUser david = users.findByUsername("david").orElseThrow();
 
-		assertThat(admin.getRole()).isEqualTo(Role.ADMIN);
+		assertThat(admin.getRole().getCode()).isEqualTo(Role.ADMIN);
+		assertThat(admin.getRole().getDisplayName()).isEqualTo("Administrator");
 		assertThat(admin.getDisplayName()).isEqualTo("Administrator");
-		assertThat(david.getRole()).isEqualTo(Role.USER);
+		assertThat(david.getRole().getCode()).isEqualTo(Role.USER);
 		assertThat(david.getDisplayName()).isEqualTo("David Bejar");
 		for (AppUser user : new AppUser[] { admin, david }) {
 			assertThat(user.getPasswordHash()).startsWith("{bcrypt}").doesNotContain(user.getUsername() + "}");
@@ -78,7 +79,8 @@ class AuthApiIT {
 		new Browser().login("admin", "admin")
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.displayName").value("Administrator"))
-			.andExpect(jsonPath("$.role").value("ADMIN"));
+			.andExpect(jsonPath("$.role").value("ADMIN"))
+			.andExpect(jsonPath("$.roleDisplayName").value("Administrator"));
 	}
 
 	@Test

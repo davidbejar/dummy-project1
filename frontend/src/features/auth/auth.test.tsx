@@ -15,7 +15,7 @@ vi.mock('../todos/api.ts', async (importOriginal) => ({
 const mockedAuth = vi.mocked(authApi)
 const mockedTodos = vi.mocked(todosApi)
 
-const david: CurrentUser = { username: 'david', displayName: 'David Bejar', role: 'USER' }
+const david: CurrentUser = { username: 'david', displayName: 'David Bejar', role: 'USER', roleDisplayName: 'User' }
 const notSignedIn = () => new ApiError(401, '401 Unauthorized')
 
 async function signIn(username: string, password: string) {

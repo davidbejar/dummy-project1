@@ -1,12 +1,12 @@
 import { request } from '../../lib/http.ts'
 
-export type Role = 'USER' | 'ADMIN'
-
 /** Mirrors the backend CurrentUser record. */
 export interface CurrentUser {
   username: string
   displayName: string
-  role: Role
+  /** Role code, e.g. 'USER' or 'ADMIN'. Roles live in the database, so this is open-ended. */
+  role: string
+  roleDisplayName: string
 }
 
 export const authApi = {

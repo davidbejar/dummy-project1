@@ -42,7 +42,7 @@ class AuthControllerTests {
 	@BeforeEach
 	void setUp() {
 		david = new AppUserDetails(UUID.randomUUID(), "david", passwordEncoder.encode("david"), "David Bejar", Role.USER,
-				true);
+				"User", true);
 		given(userDetailsService.loadUserByUsername(anyString())).willThrow(new UsernameNotFoundException("nope"));
 		willReturn(david).given(userDetailsService).loadUserByUsername("david");
 	}
@@ -54,6 +54,7 @@ class AuthControllerTests {
 			.andExpect(jsonPath("$.username").value("david"))
 			.andExpect(jsonPath("$.displayName").value("David Bejar"))
 			.andExpect(jsonPath("$.role").value("USER"))
+			.andExpect(jsonPath("$.roleDisplayName").value("User"))
 			.andExpect(jsonPath("$.password").doesNotExist());
 	}
 
