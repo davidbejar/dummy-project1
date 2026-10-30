@@ -130,6 +130,7 @@ Screens are rows in `app_screen` (`LOGIN`, `TODO`, `ADMINISTRATION`, `USER_ADMIN
 - `AuthProvider` also asks `/api/auth/anonymous` for visitors without a session.
 - `RequireScreen` guards each screen. It sends anonymous visitors to the login page and back to where they were going after login, if the new user may open it.
 - Any 401 from the API (for example an expired session) returns the user to the login page.
+- The header on every screen has a light/dark theme toggle (`ThemeToggle`, `lib/theme.ts`). The first visit follows the system setting; a choice made with the toggle is remembered in the browser's `localStorage`.
 
 Sessions are kept in the backend's memory, so restarting the backend signs everyone out.
 

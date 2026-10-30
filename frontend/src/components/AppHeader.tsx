@@ -2,6 +2,7 @@ import { NavLink, useNavigate } from 'react-router'
 import { Screen, SCREEN_PATHS } from '../app/screens.ts'
 import { screensOf } from '../features/auth/authContext.ts'
 import { useAuth } from '../features/auth/useAuth.ts'
+import { ThemeToggle } from './ThemeToggle.tsx'
 
 // Screens linked from the header, when the current role may open them.
 const NAV_LINKS = [
@@ -9,7 +10,7 @@ const NAV_LINKS = [
   { screen: Screen.ADMINISTRATION, label: 'Administration' },
 ]
 
-/** Header on every screen: navigation, and who is signed in with a logout button. */
+/** Header on every screen: navigation, the theme toggle, and who is signed in with a logout button. */
 export function AppHeader() {
   const { state, logout } = useAuth()
   const navigate = useNavigate()
@@ -28,17 +29,20 @@ export function AppHeader() {
           <NavLink key={link.screen} to={SCREEN_PATHS[link.screen]}>{link.label}</NavLink>
         ))}
       </nav>
-      {state.status === 'authenticated' && (
-        <div className="user-menu">
-          <span className="user-name" title={state.user.username}>{state.user.displayName}</span>
-          <button type="button" onClick={signOut}>Log out</button>
-        </div>
-      )}
-      {state.status === 'anonymous' && (
-        <div className="user-menu">
-          <span className="user-name">{state.visitor.roleDisplayName}</span>
-        </div>
-      )}
+      <div className="header-actions">
+        <ThemeToggle />
+        {state.status === 'authenticated' && (
+          <div className="user-menu">
+            <span className="user-name" title={state.user.username}>{state.user.displayName}</span>
+            <button type="button" onClick={signOut}>Log out</button>
+          </div>
+        )}
+        {state.status === 'anonymous' && (
+          <div className="user-menu">
+            <span className="user-name">{state.visitor.roleDisplayName}</span>
+          </div>
+        )}
+      </div>
     </header>
   )
 }
