@@ -61,7 +61,9 @@ services:
     profiles: [scan]
     # -ni: no interactsh (out-of-band) callbacks to the internet.
     # -etags dos,fuzz: skip denial-of-service and fuzzing templates.
-    # The templates are downloaded on first start (they need internet access).
+    # -duc: no update check at scan start; dast/run.sh downloads the templates (from the
+    # internet) with `-ut` first. That run also writes the templates version and the default
+    # .nuclei-ignore to the config folder, so the config volume carries them to the scan.
     command: >-
       -u http://web:8080,http://backend:8080
       -H "Cookie: JSESSIONID=${DAST_SESSION:-}; XSRF-TOKEN=${DAST_XSRF:-}"
@@ -69,11 +71,14 @@ services:
       -severity low,medium,high,critical
       -etags dos,fuzz
       -ni
+      -duc
       -jsonl -o /reports/nuclei.jsonl
       -me /reports/nuclei
     volumes:
       - ./dast/reports:/reports
       - nuclei-templates:/root/nuclei-templates
+      - nuclei-config:/root/.config/nuclei
 
 volumes:
   nuclei-templates:
+  nuclei-config:

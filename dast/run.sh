@@ -69,9 +69,28 @@ if ! session_alive; then
 	echo "WARNING: the session ended during the ZAP scan, so part of it ran unauthenticated" >&2
 fi
 
+echo "==> Downloading the Nuclei templates"
+# Done here, with retries, rather than by Nuclei's own update check at scan start: that
+# check can fail quietly and leave the scan with no templates at all.
+templates_ready() {
+	compose --profile scan run --rm --entrypoint sh nuclei \
+		-c 'find /root/nuclei-templates -name "*.yaml" | grep -q .' >/dev/null 2>&1
+}
+for attempt in 1 2 3; do
+	compose --profile scan run --rm nuclei -ut || true
+	if templates_ready; then break; fi
+	echo "No templates after attempt ${attempt}" >&2
+	sleep $((attempt * 10))
+done
+
 echo "==> Running Nuclei"
 nuclei_status=0
-compose --profile scan run --rm nuclei || nuclei_status=$?
+if templates_ready; then
+	compose --profile scan run --rm nuclei || nuclei_status=$?
+else
+	echo "Could not download the Nuclei templates" >&2
+	nuclei_status=1
+fi
 
 echo
 echo "==> Results (reports in ${reports}/)"
