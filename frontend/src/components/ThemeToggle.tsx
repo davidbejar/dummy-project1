@@ -1,20 +1,22 @@
-import { useState } from 'react'
-import { applyTheme, initialTheme, saveTheme, Theme } from '../lib/theme.ts'
+import { useSyncExternalStore } from 'react'
+import { chooseTheme, currentTheme, subscribeToTheme, ThemeChoice } from '../lib/theme.ts'
 
-/** Switches between the light and dark theme, remembering the choice in this browser. */
+const OPTIONS: { value: ThemeChoice; label: string }[] = [
+  { value: 'system', label: 'System' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+]
+
+/** Picks the light, dark or system theme, remembering the choice in this browser. */
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>(initialTheme)
-  const next: Theme = theme === 'dark' ? 'light' : 'dark'
-
-  function toggle() {
-    applyTheme(next)
-    saveTheme(next)
-    setTheme(next)
-  }
+  const theme = useSyncExternalStore(subscribeToTheme, currentTheme)
 
   return (
-    <button type="button" className="theme-toggle" onClick={toggle} aria-label={`Switch to ${next} theme`} title={`Switch to ${next} theme`}>
-      {next === 'dark' ? '☾' : '☀'}
-    </button>
+    <label className="theme-toggle">
+      <span className="visually-hidden">Theme</span>
+      <select value={theme} onChange={(event) => chooseTheme(event.target.value as ThemeChoice)}>
+        {OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>
+    </label>
   )
 }

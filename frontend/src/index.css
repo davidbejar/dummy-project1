@@ -2,7 +2,11 @@
   font-family: system-ui, sans-serif;
   color-scheme: light dark;
   --border: #8884;
-  --error: light-dark(#c22, #f66);
+  --error: #d33;
+}
+/* Browsers without light-dark() keep the plain red above. */
+@supports (color: light-dark(#000, #fff)) {
+  :root { --error: light-dark(#c22, #f66); }
 }
 :root[data-theme="light"] { color-scheme: light; }
 :root[data-theme="dark"] { color-scheme: dark; }
@@ -17,7 +21,7 @@ body { margin: 0; }
 }
 .brand { font-weight: 600; }
 .header-actions { display: flex; align-items: center; gap: 0.75rem; }
-.theme-toggle { padding: 0.2rem 0.5rem; }
+.theme-toggle select { padding: 0.2rem 0.4rem; }
 .user-menu { display: flex; align-items: center; gap: 0.75rem; }
 .user-name { font-weight: 500; }
 
